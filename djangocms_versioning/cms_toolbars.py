@@ -113,8 +113,9 @@ class VersioningToolbar(PlaceholderToolbar):
             draft_exists = Version.objects.filter(
                 object_id__in=pks_for_grouper, content_type=content_type, state=DRAFT
             ).exists()
+            edit_type = content_type.name
             item.add_button(
-                _("Edit") if draft_exists else _("New Draft"),
+                gettext("Edit {ct}").format(ct=edit_type) if draft_exists else gettext("New {ct}").format(ct=edit_type),
                 url=edit_url,
                 disabled=disabled,
                 extra_classes=["cms-btn-action", "js-action", "cms-form-post-method", "cms-versioning-js-edit-btn"],
