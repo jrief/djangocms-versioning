@@ -300,7 +300,7 @@ class VersioningPageToolbar(PageToolbar):
 
     def populate(self):
         self.page = self.request.current_page
-        self.title = self.get_page_content() if self.page else None
+        self.page_content = self.get_page_content() if self.page else None
         self.permissions_activated = get_cms_setting("PERMISSION")
 
         self.override_language_menu()
