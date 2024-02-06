@@ -331,13 +331,13 @@ class VersioningPageToolbar(PageToolbar):
     """
     def get_page_content(self, language=None):
         if not language:
-            language = self.current_lang
+            return super().get_page_content()
 
-        return get_latest_admin_viewable_content(self.page, language=language)
+        return get_latest_admin_viewable_content(self.page, language=language, include_unpublished_archived=True)
 
     def populate(self):
         self.page = self.request.current_page
-        self.title = self.get_page_content() if self.page else None
+        self.page_content = self.get_page_content() if self.page else None
         self.permissions_activated = get_cms_setting("PERMISSION")
 
         self.override_language_menu()
