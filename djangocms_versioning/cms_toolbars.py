@@ -294,9 +294,9 @@ class VersioningPageToolbar(PageToolbar):
     """
     def get_page_content(self, language=None):
         if not language:
-            language = self.current_lang
+            return super().get_page_content()
 
-        return get_latest_admin_viewable_content(self.page, language=language)
+        return get_latest_admin_viewable_content(self.page, language=language, include_unpublished_archived=True)
 
     def populate(self):
         self.page = self.request.current_page
