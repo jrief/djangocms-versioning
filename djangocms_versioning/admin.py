@@ -622,6 +622,9 @@ class VersionAdmin(ChangeListActionsMixin, admin.ModelAdmin, metaclass=MediaDefi
             for field in versionable.extra_grouping_fields
         ]
 
+    def get_model_perms(self, request):
+        return {}
+
     def get_actions(self, request):
         """Removes the standard django admin delete action."""
         actions = super().get_actions(request)
