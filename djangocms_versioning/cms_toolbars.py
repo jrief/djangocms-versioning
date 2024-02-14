@@ -331,7 +331,7 @@ class VersioningPageToolbar(PageToolbar):
     """
     def get_page_content(self, language=None):
         if not language:
-            return super().get_page_content()
+            language = self.current_lang
 
         return get_latest_admin_viewable_content(self.page, language=language, include_unpublished_archived=True)
 
