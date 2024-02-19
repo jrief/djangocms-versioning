@@ -950,7 +950,7 @@ class VersionAdmin(ChangeListActionsMixin, admin.ModelAdmin, metaclass=MediaDefi
             )
         if request.method != "POST":
             return HttpResponseNotAllowed(
-                ["GET", "POST"], _("This view only supports GET or POST method.")
+                ["POST"], _("This view only supports POST method.")
             )
         visibility_start = form.cleaned_data["visibility_start"]
         visibility_end = form.cleaned_data["visibility_end"]
@@ -1002,9 +1002,9 @@ class VersionAdmin(ChangeListActionsMixin, admin.ModelAdmin, metaclass=MediaDefi
             )
 
         if conf.ON_PUBLISH_REDIRECT in ("preview", "published"):
-            redirect_url=get_preview_url(version.content)
+            redirect_url = get_preview_url(version.content)
         else:
-            redirect_url=version_list_url(version.content)
+            redirect_url = version_list_url(version.content)
 
         if not version.can_be_unpublished():
             self.message_user(
