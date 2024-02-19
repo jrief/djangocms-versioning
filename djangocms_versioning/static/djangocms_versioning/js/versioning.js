@@ -1,4 +1,5 @@
 (function() {
+    'use strict';
     var firstChecked, lastChecked;
 
     function handleVersionSelection(event) {
