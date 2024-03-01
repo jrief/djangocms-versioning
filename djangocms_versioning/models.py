@@ -16,6 +16,8 @@ from .conditions import (
     draft_is_not_locked,
     in_state,
     is_not_locked,
+    user_can_change,
+    user_can_publish,
 )
 from .conf import ALLOW_DELETING_VERSIONS, LOCK_VERSIONS
 from .operations import send_post_version_operation, send_pre_version_operation
@@ -29,7 +31,7 @@ except ImportError:
 not_draft_error = _("Version is not a draft")
 lock_error_message = _("Action Denied. The latest version is locked by {user}")
 lock_draft_error_message = _("Action Denied. The draft version is locked by {user}")
-
+permission_error_message = _("You do not have permission to perform this action")
 
 def allow_deleting_versions(collector, field, sub_objs, using):
     if ALLOW_DELETING_VERSIONS:
@@ -296,6 +298,7 @@ class Version(models.Model):
 
     check_archive = Conditions(
         [
+            user_can_change(permission_error_message),
             in_state([constants.DRAFT], _("Version is not in draft state")),
             is_not_locked(lock_error_message),
         ]
@@ -345,7 +348,10 @@ class Version(models.Model):
         pass
 
     check_publish = Conditions(
-        [in_state([constants.DRAFT], _("Version is not in draft state"))]
+        [
+            user_can_publish(permission_error_message),
+            in_state([constants.DRAFT], _("Version is not in draft state")),
+        ]
     )
 
     def can_be_published(self):
@@ -418,6 +424,7 @@ class Version(models.Model):
         )
 
     check_unpublish = Conditions([
+        user_can_publish(permission_error_message),
         in_state([constants.PUBLISHED], _("Version is not in published state")),
         draft_is_not_locked(lock_draft_error_message),
     ])
@@ -468,6 +475,50 @@ class Version(models.Model):
         possible to be left with inconsistent data)"""
         pass
 
+    def has_publish_permission(self, user) -> bool:
+        """
+        Check if the given user has permission to publish.
+
+        Args:
+            user (User): The user to check for permission.
+
+        Returns:
+            bool: True if the user has publish permission, False otherwise.
+        """
+        return self._has_permission("publish", user)
+
+    def has_change_permission(self, user) -> bool:
+        """
+        Check whether the given user has permission to change the object.
+
+        Parameters:
+            user (User): The user for which permission needs to be checked.
+
+        Returns:
+            bool: True if the user has permission to change the object, False otherwise.
+        """
+        return self._has_permission("change", user)
+
+    def _has_permission(self, perm: str, user) -> bool:
+        """
+        Check if the user has the specified permission for the content by
+        checking the content's has_publish_permission, has_placeholder_change_permission,
+        or has_change_permission methods.
+
+        Falls back to Djangos change permission for the content object.
+        """
+        if perm == "publish" and hasattr(self.content, "has_publish_permission"):
+            # First try explicit publish permission
+            return self.content.can_publish(user)
+        if hasattr(self.content, "has_change_permission"):
+            # First fallback: change permissions
+            return self.content.can_change(user)
+        if hasattr(self.content, "has_placeholder_change_permission"):
+            # Second fallback: placeholder change permissions - works for PageContent
+            return self.content.has_placeholder_change_permission(user)
+        # final fallback: Django perms
+        return user.has_perm(f"{self.content_type.app_label}.change_{self.content_type.model}")
+
     check_modify = Conditions(
         [
             in_state([constants.DRAFT], not_draft_error),
@@ -476,6 +527,7 @@ class Version(models.Model):
     )
     check_revert = Conditions(
         [
+            user_can_change(permission_error_message),
             in_state(
                 [constants.ARCHIVED, constants.UNPUBLISHED],
                 _("Version is not in archived or unpublished state"),
