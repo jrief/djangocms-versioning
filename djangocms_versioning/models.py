@@ -280,7 +280,7 @@ class Version(models.Model):
         Allows customization of how the content object will be copied
         when specified in cms_config.py
 
-        This method needs to be ran in a transaction due to the fact that if
+        This method needs to be run in a transaction due to the fact that if
         models are partially created in the copy method a version is not attached.
         It needs to be that if anything goes wrong we should roll back the entire task.
         We shouldn't leave this to package developers to know to add this feature
@@ -509,10 +509,10 @@ class Version(models.Model):
         """
         if perm == "publish" and hasattr(self.content, "has_publish_permission"):
             # First try explicit publish permission
-            return self.content.can_publish(user)
+            return self.content.has_publish_permission(user)
         if hasattr(self.content, "has_change_permission"):
             # First fallback: change permissions
-            return self.content.can_change(user)
+            return self.content.has_change_permission(user)
         if hasattr(self.content, "has_placeholder_change_permission"):
             # Second fallback: placeholder change permissions - works for PageContent
             return self.content.has_placeholder_change_permission(user)
