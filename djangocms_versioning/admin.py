@@ -5,6 +5,7 @@ from collections import OrderedDict
 from urllib.parse import urlparse
 
 from cms.admin.utils import CONTENT_PREFIX, ChangeListActionsMixin, GrouperModelAdmin
+from cms.context_processors import cms_settings
 from cms.models import PageContent
 from cms.utils import get_language_from_request
 from cms.utils.conf import get_cms_setting
@@ -978,6 +979,8 @@ class VersionAdmin(ChangeListActionsMixin, admin.ModelAdmin, metaclass=MediaDefi
 
         # Publish the version
         version.publish(request.user)
+        menu_renderer = cms_settings(request)['cms_menu_renderer']
+        menu_renderer.clear_cache(version.content.page)
 
         # Display message
         self.message_user(request, _("Version published"))
