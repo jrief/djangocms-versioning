@@ -37,9 +37,6 @@ VERSIONING_MENU_IDENTIFIER = "version"
 
 
 class VersioningToolbar(PlaceholderToolbar):
-    class Media:
-        js = ("cms/js/admin/actions.js",)
-
     def _get_versionable(self):
         """Helper method to get the versionable for the content type
         of the version
@@ -81,7 +78,7 @@ class VersioningToolbar(PlaceholderToolbar):
                 _("Publish"),
                 url=publish_url,
                 disabled=False,
-                extra_classes=["cms-btn-action", "js-action", "cms-form-post-method", "cms-versioning-js-publish-btn"],
+                extra_classes=["cms-btn-action", "cms-form-post-method", "cms-versioning-js-publish-btn"],
             )
             self.toolbar.add_item(item)
 
@@ -118,7 +115,7 @@ class VersioningToolbar(PlaceholderToolbar):
                 gettext("Edit {ct}").format(ct=edit_type) if draft_exists else gettext("New {ct}").format(ct=edit_type),
                 url=edit_url,
                 disabled=disabled,
-                extra_classes=["cms-btn-action", "js-action", "cms-form-post-method", "cms-versioning-js-edit-btn"],
+                extra_classes=["cms-btn-action", "cms-form-post-method", "cms-versioning-js-edit-btn"],
             )
             self.toolbar.add_item(item)
 
@@ -138,7 +135,6 @@ class VersioningToolbar(PlaceholderToolbar):
                 if can_unlock:
                     extra_classes = [
                         "cms-btn-action",
-                        "js-action",
                         "cms-form-post-method",
                         "cms-versioning-js-unlock-btn",
                     ]
@@ -353,7 +349,7 @@ class VersioningPageToolbar(PageToolbar):
         # Only override the menu if it exists and a page can be found
         language_menu = self.toolbar.get_menu(LANGUAGE_MENU_IDENTIFIER, _("Language"))
         if settings.USE_I18N and language_menu and self.page:
-            # remove_item uses `items` attribute so we have to copy object
+            # remove_item uses `items` attribute, so we have to copy object
             for _item in copy(language_menu.items):
                 language_menu.remove_item(item=_item)
 
