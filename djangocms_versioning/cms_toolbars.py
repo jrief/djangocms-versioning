@@ -23,7 +23,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.formats import localize
 from django.utils.http import urlencode
-from django.utils.translation import gettext, gettext_lazy as _
+from django.utils.translation import gettext, gettext_lazy as _, pgettext
 
 from djangocms_versioning.conf import LOCK_VERSIONS
 from djangocms_versioning.constants import DRAFT
@@ -112,7 +112,7 @@ class VersioningToolbar(PlaceholderToolbar):
             ).exists()
             edit_type = content_type.name
             item.add_button(
-                gettext("Edit {ct}").format(ct=edit_type) if draft_exists else gettext("New {ct}").format(ct=edit_type),
+                pgettext("Edit {ct}", 'toolbar').format(ct=edit_type) if draft_exists else pgettext("New {ct}", 'toolbar').format(ct=edit_type),
                 url=edit_url,
                 disabled=disabled,
                 extra_classes=["cms-btn-action", "cms-form-post-method", "cms-versioning-js-edit-btn"],
