@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from copy import copy
+from typing import Optional
 
 from cms.cms_toolbars import (
     ADD_PAGE_LANGUAGE_BREAK,
@@ -240,7 +241,7 @@ class VersioningToolbar(PlaceholderToolbar):
 
                 url += "?" + urlencode({
                     "compare_to": version.pk,
-                    "back": self.request.get_full_path(),
+                    "back": self.toolbar.request_path,
                 })
                 versioning_menu.add_link_item(name, url=url)
                 # Need separator?
@@ -325,11 +326,25 @@ class VersioningPageToolbar(PageToolbar):
     Overriding the original Page toolbar to ensure that draft and published pages
     can be accessed and to allow full control over the Page toolbar for versioned pages.
     """
-    def get_page_content(self, language=None):
+
+    def __init__(self, *args, **kwargs):
+        self.page_content: Optional[PageContent] = None
+        super().__init__(*args, **kwargs)
+
+    def get_page_content(self, language: Optional[str] = None) -> PageContent:
         if not language:
             language = self.current_lang
 
-        return get_latest_admin_viewable_content(self.page, language=language, include_unpublished_archived=True)
+        if self.page_content and self.page_content.language == language:
+            # Already known - no need to query it again
+            return self.page_content
+        toolbar_obj = self.toolbar.get_object()
+        if toolbar_obj and toolbar_obj.language == language:
+            # Already in the toolbar, then use it!
+            return self.toolbar.get_object()
+        else:
+            # Get it from the DB
+            return get_latest_admin_viewable_content(self.page, language=language)
 
     def populate(self):
         self.page = self.request.current_page
