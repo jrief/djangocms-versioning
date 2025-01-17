@@ -2,12 +2,14 @@ from collections import OrderedDict
 from copy import copy
 from typing import Optional
 
+from cms import __version__ as cms_version
 from cms.cms_toolbars import (
     ADD_PAGE_LANGUAGE_BREAK,
     LANGUAGE_MENU_IDENTIFIER,
     PageToolbar,
     PlaceholderToolbar,
 )
+from cms.constants import REFRESH_PAGE
 from cms.models import PageContent
 from cms.toolbar.items import RIGHT, Break, ButtonList, TemplateItem
 from cms.toolbar.utils import get_object_preview_url
@@ -25,9 +27,10 @@ from django.utils import timezone
 from django.utils.formats import localize
 from django.utils.http import urlencode
 from django.utils.translation import gettext, gettext_lazy as _, pgettext
+from packaging import version
 
-from djangocms_versioning.conf import LOCK_VERSIONS
-from djangocms_versioning.constants import DRAFT
+from djangocms_versioning.conf import ALLOW_DELETING_VERSIONS, LOCK_VERSIONS
+from djangocms_versioning.constants import DRAFT, PUBLISHED
 from djangocms_versioning.helpers import (
     get_latest_admin_viewable_content,
     version_list_url,
@@ -35,6 +38,7 @@ from djangocms_versioning.helpers import (
 from djangocms_versioning.models import Version
 
 VERSIONING_MENU_IDENTIFIER = "version"
+CMS_SUPPORTS_DELETING_TRANSLATIONS = version.Version(cms_version) > version.Version("4.1.4")
 
 
 class VersioningToolbar(PlaceholderToolbar):
@@ -422,6 +426,23 @@ class VersioningPageToolbar(PageToolbar):
                     )
                     add_plugins_menu.add_modal_item(name, url=url)
 
+            if remove and ALLOW_DELETING_VERSIONS and CMS_SUPPORTS_DELETING_TRANSLATIONS:
+                remove_plugins_menu = language_menu.get_or_create_menu(
+                    f"{LANGUAGE_MENU_IDENTIFIER}-del", _("Delete Translation")
+                )
+                disabled = len(remove) == 1
+                for code, name in remove:
+                    pagecontent = self.page.get_admin_content(language=code)
+                    if pagecontent:
+                        translation_delete_url = admin_reverse("cms_pagecontent_delete", args=(pagecontent.pk,))
+                        url = add_url_parameters(translation_delete_url, language=code)
+                        on_close = REFRESH_PAGE
+                        if self.toolbar.get_object() == pagecontent and not disabled:
+                            other_content = next((self.page.get_admin_content(lang)for lang in self.page.get_languages()
+                                                  if lang != pagecontent.language and lang in languages), None)
+                            on_close = get_object_preview_url(other_content)
+                        remove_plugins_menu.add_modal_item(name, url=url, disabled=disabled, on_close=on_close)
+
             if copy:
                 copy_plugins_menu = language_menu.get_or_create_menu(
                     f"{LANGUAGE_MENU_IDENTIFIER}-copy", _("Copy all plugins")
@@ -431,7 +452,7 @@ class VersioningPageToolbar(PageToolbar):
                 item_added = False
                 for code, name in copy:
                     # Get the Draft or Published PageContent.
-                    page_content = self.get_page_content(language=code)
+                    page_content = self.page.get_admin_content(language=code)
                     if page_content:  # Only offer to copy if content for source language exists
                         page_copy_url = admin_reverse("cms_pagecontent_copy_language", args=(page_content.pk,))
                         copy_plugins_menu.add_ajax_item(
