@@ -38,7 +38,7 @@ from djangocms_versioning.helpers import (
 from djangocms_versioning.models import Version
 
 VERSIONING_MENU_IDENTIFIER = "version"
-CMS_SUPPORTS_DELETING_TRANSLATIONS = version.Version(cms_version) > version.Version("4.1.4")
+CMS_SUPPORTS_DELETING_TRANSLATIONS = True  # deactivated on Fabian's behest: version.Version(cms_version) > version.Version("4.1.4")
 
 
 class VersioningToolbar(PlaceholderToolbar):
