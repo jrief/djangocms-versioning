@@ -46,7 +46,6 @@ class HandlersTestCase(CMSTestCase):
         plugin = add_plugin(
             placeholder, "PollPlugin", version.content.language, poll=poll
         )
-        plugin.page.get_absolute_url = lambda *args, **kwargs: "/test_page/"  # Fake URL needed for URI
 
         dt = datetime(2016, 6, 6)
         with freeze_time(dt):
@@ -71,7 +70,7 @@ class HandlersTestCase(CMSTestCase):
 
             with self.login_user_context(self.get_superuser()):
                 response = self.client.post(endpoint, {"test": 0})
-                self.assertEqual(response.status_code, 302)
+                self.assertIn(response.status_code, (200, 302))
 
         version = Version.objects.get(pk=version.pk)
         self.assertEqual(version.modified, dt)
@@ -93,7 +92,7 @@ class HandlersTestCase(CMSTestCase):
 
             with self.login_user_context(self.get_superuser()):
                 response = self.client.post(endpoint, data)
-                self.assertEqual(response.status_code, 302)
+                self.assertIn(response.status_code, (200, 302))  # 302 for django CMS < 5
 
         version = Version.objects.get(pk=version.pk)
         self.assertEqual(version.modified, dt)

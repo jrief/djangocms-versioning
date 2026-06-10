@@ -2,6 +2,74 @@
 Changelog
 =========
 
+2.5.1 (2026-02-09)
+==================
+
+* feat: Allow "View on Site" for objects not on the current site by @stefanw in https://github.com/django-cms/djangocms-versioning/pull/479
+* feat: Preserve GET params for "View published" button by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/509
+* feat: Changelist performance improvement by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/505
+* fix: Make copy_function optional by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/515
+* fix: Invalid permission checking in ExtendedVersionAdminMixin by @pierreben in https://github.com/django-cms/djangocms-versioning/pull/519
+* docs: Update api reference by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/508
+* docs: Update docs to explain the djangocms_versioning contract by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/511
+* docs: update signal parameters documentation by @nstuardod in https://github.com/django-cms/djangocms-versioning/pull/517
+* locale: Updates for file djangocms_versioning/locale/en/LC_MESSAGES/django.po in fr by @transifex-integration[bot] in https://github.com/django-cms/djangocms-versioning/pull/513
+
+**New Contributors**
+
+* @nstuardod made their first contribution in https://github.com/django-cms/djangocms-versioning/pull/517
+* @pierreben made their first contribution in https://github.com/django-cms/djangocms-versioning/pull/519
+
+2.5.0 (2025-11-14)
+==================
+
+* feat: Language menu allows creating new translations from preview mode by @va-lang in https://github.com/django-cms/djangocms-versioning/pull/491
+* feat: Modernize Python and Django support: Drop Python 3.9, add Python 3.14 and Django 6.0 by @vinitkumar in https://github.com/django-cms/djangocms-versioning/pull/489
+* feat: Updates for file djangocms_versioning/locale/en/LC_MESSAGES/django.po in de by @transifex-integration[bot] in https://github.com/django-cms/djangocms-versioning/pull/496
+* chore: Swap django-fsm with django-fsm-2
+* fix: Typo in permission name by @stefan6419846 in https://github.com/django-cms/djangocms-versioning/pull/476
+* fix: Remove unnecessary `_original_manager` usage from toolbar by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/477
+* fix: Respect site-specific language configurations by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/480
+* fix: Respect permissions for indicator menus and version locking by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/493
+
+**New Contributors**
+
+* @stefan6419846 made their first contribution in https://github.com/django-cms/djangocms-versioning/pull/476
+* @vinitkumar made their first contribution in https://github.com/django-cms/djangocms-versioning/pull/489
+* @va-lang made their first contribution in https://github.com/django-cms/djangocms-versioning/pull/491
+
+2.4.0 (2025-07-17)
+==================
+
+* feat: Auto-add versioning mixin to GrouperAdmin by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/472
+
+2.3.2 (2025-05-16)
+==================
+
+* fix: Add back ``create_versions`` management commmand by @fsbraun in
+
+2.3.1 (2025-05-13)
+==================
+
+* feat: Improve default copy method to also copy placeholders and plugins by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/345
+* fix: Only show language menu for more than one language by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/457
+* Updates for file djangocms_versioning/locale/en/LC_MESSAGES/django.po in nl by @transifex-integration in https://github.com/django-cms/djangocms-versioning/pull/460
+* Updates for file djangocms_versioning/locale/en/LC_MESSAGES/django.po in sq by @transifex-integration in https://github.com/django-cms/djangocms-versioning/pull/463
+* Updates for file djangocms_versioning/locale/en/LC_MESSAGES/django.po in ru by @transifex-integration in https://github.com/django-cms/djangocms-versioning/pull/459
+* fix: Use consistent django colors for accent object tools by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/464
+* chore: Remove deprecated django CMS references by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/465
+
+
+2.2.1 (2025-03-06)
+==================
+
+* fix: Pre-populate `version.content` cache when getting version object by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/446
+* fix: Test compatibility with django CMS 5 by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/453
+* fix: For headless mode, django CMS 5.0 adds preview buttons to all views. Do not add again. by @fsbraun in https://github.com/django-cms/djangocms-versioning/pull/455
+* ci: update ruff configuration by @earthcomfy in https://github.com/django-cms/djangocms-versioning/pull/448
+* build(deps): bump actions/cache from 4.2.0 to 4.2.2 by @dependabot in https://github.com/django-cms/djangocms-versioning/pull/452
+
+
 2.2.0 (2025-01-17)
 ==================
 

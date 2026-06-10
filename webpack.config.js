@@ -1,46 +1,52 @@
-var webpack = require('webpack');
-// var path = require('path');
+const path = require('path');
+const webpack = require('webpack');
 
-module.exports = function(opts) {
-    'use strict';
+const JS_PATH = path.join(__dirname, 'djangocms_versioning/static/djangocms_versioning/js');
 
-    var PROJECT_PATH = opts.PROJECT_PATH;
-    var debug = opts.debug;
+module.exports = (env, argv) => {
+    const debug = argv && argv.mode === 'development';
 
     if (!debug) {
         process.env.NODE_ENV = 'production';
     }
 
-    var baseConfig = {
-        devtool: false,
-        watch: !!opts.watch,
+    const config = {
+        mode: debug ? 'development' : 'production',
+        devtool: debug ? 'cheap-module-source-map' : false,
         entry: {
-            // CMS frontend
-            versioning: PROJECT_PATH.js + '/base.js',
+            versioning: path.join(JS_PATH, 'base.js'),
         },
         output: {
-            path: PROJECT_PATH.js + '/dist/',
+            path: path.join(JS_PATH, 'dist/'),
             filename: 'bundle.[name].min.js',
             chunkFilename: 'bundle.[name].min.js',
-            jsonpFunction: 'versioningWebpackJsonp',
         },
-        plugins: [],
+        performance: {
+            hints: false,
+            maxEntrypointSize: 512000,
+            maxAssetSize: 512000,
+        },
+        plugins: [
+            new webpack.DefinePlugin({
+                __DEV__: debug ? 'true' : 'false',
+            }),
+        ],
         resolve: {
             alias: {
-                htmldiff: PROJECT_PATH.js + '/libs/htmldiff.js',
-                prettydiff: PROJECT_PATH.js + '/prettydiff.js',
+                htmldiff: path.join(JS_PATH, 'libs/htmldiff.js'),
+                prettydiff: path.join(JS_PATH, 'prettydiff.js'),
             },
         },
         module: {
             rules: [
-                // must be first
                 {
                     test: /\.js$/,
                     use: [
                         {
                             loader: 'babel-loader',
                             options: {
-                                retainLines: true,
+                                presets: ['@babel/preset-env'],
+                                plugins: process.env.COVERAGE === 'true' ? ['istanbul'] : [],
                             },
                         },
                     ],
@@ -48,58 +54,39 @@ module.exports = function(opts) {
                 },
                 {
                     test: /(.html$|api\/dom)/,
-                    use: [
-                        {
-                            loader: 'raw-loader',
-                        },
-                    ],
+                    type: 'asset/source',
                 },
                 {
                     test: /(.css$)/,
                     use: [
-                        {
-                            loader: 'raw-loader',
-                        },
+                        { loader: 'raw-loader' },
                         {
                             loader: 'postcss-loader',
                             options: {
-                                plugins: () => [
-                                    require('autoprefixer')({
-                                        browsers: ['last 2 versions', '> 1%'],
-                                    }),
-                                    require('cssnano')(),
-                                ],
+                                postcssOptions: {
+                                    plugins: [
+                                        require('autoprefixer'),
+                                        require('cssnano')(),
+                                    ],
+                                },
                             },
                         },
                     ],
                 },
             ],
         },
-        stats: 'verbose',
+        stats: {
+            preset: 'normal',
+            reasons: false,
+            modulesSpace: 15,
+            errorDetails: true,
+        },
+        optimization: {
+            concatenateModules: true,
+            providedExports: true,
+            usedExports: true,
+        },
     };
 
-    if (debug) {
-        baseConfig.devtool = 'cheap-module-eval-source-map';
-        baseConfig.plugins = baseConfig.plugins.concat([
-            new webpack.NoEmitOnErrorsPlugin(),
-            new webpack.DefinePlugin({
-                __DEV__: 'true',
-            }),
-        ]);
-    } else {
-        baseConfig.plugins = baseConfig.plugins.concat([
-            new webpack.DefinePlugin({
-                __DEV__: 'false',
-            }),
-            new webpack.optimize.ModuleConcatenationPlugin(),
-            new webpack.optimize.UglifyJsPlugin({
-                comments: false,
-                compressor: {
-                    drop_console: true, // eslint-disable-line
-                },
-            }),
-        ]);
-    }
-
-    return baseConfig;
+    return config;
 };

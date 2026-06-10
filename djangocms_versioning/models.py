@@ -34,8 +34,23 @@ lock_error_message = _("Action Denied. The latest version is locked by {user}")
 lock_draft_error_message = _("Action Denied. The draft version is locked by {user}")
 permission_error_message = _("You do not have permission to perform this action")
 
+
+def PROTECT_IF_PUBLIC_VERSION(collector, field, sub_objs, using):
+    public_objs = sub_objs.filter(state=constants.PUBLISHED)
+    if public_objs.exists():
+        raise models.ProtectedError(
+            f"Cannot delete some instances of model '{field.remote_field.model.__name__}' because they are "
+            f"referenced through a protected foreign key: '{sub_objs[0].__class__.__name__}.{field.name}'",
+            public_objs,
+        )
+    models.SET_NULL(collector, field, sub_objs, using)
+
+
 def allow_deleting_versions(collector, field, sub_objs, using):
-    if ALLOW_DELETING_VERSIONS:
+    if ALLOW_DELETING_VERSIONS == constants.DELETE_NON_PUBLIC_ONLY:
+        PROTECT_IF_PUBLIC_VERSION(collector, field, sub_objs, using)
+    elif ALLOW_DELETING_VERSIONS == constants.DELETE_ANY or ALLOW_DELETING_VERSIONS is True:
+        # Backwards compatibility: True means DELETE_ANY
         models.SET_NULL(collector, field, sub_objs, using)
     else:
         models.PROTECT(collector, field, sub_objs, using)
@@ -51,6 +66,7 @@ class VersionQuerySet(models.QuerySet):
         version = self.get(
             object_id=content_object.pk, content_type__in=versionable.content_types
         )
+        version._state.fields_cache["content"] = content_object
         content_object._version_cache = version
         return version
 
@@ -126,11 +142,18 @@ class Version(models.Model):
     class Meta:
         unique_together = ("content_type", "object_id")
         permissions = (
-            ("delete_versionlock", "Can unlock verision"),
+            ("delete_versionlock", "Can unlock version"),
         )
 
     def __str__(self):
-        return f"Version #{self.pk}"
+        state = dict(constants.VERSION_STATES).get(self.state, self.state)
+        if self.object_id:
+            try:
+                return f"Version #{self.pk} ({state}) of {self.content}"
+            except Exception:
+                # In case the content object cannot be stringified
+                pass
+        return f"Version #{self.pk} ({state})"
 
     def verbose_name(self):
         return _("Version #{number} ({state} {date})").format(
@@ -243,7 +266,11 @@ class Version(models.Model):
         """Returns a copy of current Version object, but as an instance
         of its correct proxy model"""
 
+        cache = self._state.fields_cache
+        del self._state.fields_cache  # Remove cache before creating deep copy
         new_obj = copy.deepcopy(self)
+        new_obj._state.fields_cache = cache  # Recover caches
+        self._state.fields_cache = cache  # Recover caches
         new_obj.__class__ = self.versionable.version_model_proxy
         return new_obj
 
@@ -487,7 +514,7 @@ class Version(models.Model):
             # Second fallback: placeholder change permissions - works for PageContent
             return self.content.has_placeholder_change_permission(user)
         # final fallback: Django perms
-        return user.has_perm(f"{self.content_type.app_label}.change_{self.content_type.model}")
+        return user.has_perm(f"{self.content._meta.app_label}.change_{self.content._meta.model_name}")
 
     check_modify = Conditions(
         [

@@ -1,8 +1,8 @@
 -r requirements_base.txt
 
-django-cms>=4.1,<4.2
+django-cms>=5.0,<5.1
 
-Django>=3.2,<4.0
+Django>=5.2,<6.0
 django-classy-tags
-django-fsm>=2.6,<3
+django-fsm-2==4.1.0
 django-sekizai

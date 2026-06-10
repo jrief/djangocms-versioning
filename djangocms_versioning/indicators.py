@@ -1,7 +1,4 @@
-import typing
-
 from cms.utils.urlutils import admin_reverse
-from django.contrib.auth import get_permission_codename
 from django.db import models
 from django.utils.http import urlencode
 from django.utils.translation import gettext_lazy as _
@@ -21,10 +18,13 @@ def _reverse_action(version, action, back=None):
 def content_indicator_menu(request, status, versions, back=""):
     from djangocms_versioning.helpers import version_list_url
 
+    has_change_perm =versions[0].has_change_permission(request.user)
+    delete_versionlock_perm = f"{versions[0]._meta.app_label}.delete_versionlock"
+
     menu = []
-    if request.user.has_perm(f"cms.{get_permission_codename('change', versions[0]._meta)}"):
+    if has_change_perm:
         if versions[0].check_unlock.as_bool(request.user):
-            can_unlock = request.user.has_perm("djangocms_versioning.delete_versionlock")
+            can_unlock = request.user.has_perm(delete_versionlock_perm)
             # disable if permissions are insufficient
             additional_class = "" if can_unlock else " cms-pagetree-dropdown-item-disabled"
             menu.append((
@@ -92,8 +92,8 @@ def content_indicator_menu(request, status, versions, back=""):
 
 def content_indicator(
     content_obj: models.Model,
-    versions: typing.Optional[list[Version]] = None
-) -> typing.Optional[str]:
+    versions: list[Version] | None = None
+) -> str | None:
     """Translates available versions into status to be reflected by the indicator.
     Function caches the result in the page_content object"""
 
@@ -112,20 +112,20 @@ def content_indicator(
         }
         if DRAFT in signature and PUBLISHED not in signature:
             content_obj._indicator_status = "draft"
-            content_obj._version = signature[DRAFT],
+            content_obj._versions = signature[DRAFT],
         elif DRAFT in signature and PUBLISHED in signature:
             content_obj._indicator_status = "dirty"
-            content_obj._version = (signature[DRAFT], signature[PUBLISHED])
+            content_obj._versions = (signature[DRAFT], signature[PUBLISHED])
         elif PUBLISHED in signature:
             content_obj._indicator_status = "published"
-            content_obj._version = signature[PUBLISHED],
+            content_obj._versions = signature[PUBLISHED],
         elif versions[0].state == UNPUBLISHED:
             content_obj._indicator_status = "unpublished"
-            content_obj._version = signature[UNPUBLISHED],
+            content_obj._versions = signature[UNPUBLISHED],
         elif versions[0].state == ARCHIVED:
             content_obj._indicator_status = "archived"
-            content_obj._version = signature[ARCHIVED],
+            content_obj._versions = signature[ARCHIVED],
         else:  # pragma: no cover
             content_obj._indicator_status = None
-            content_obj._version = [None]
+            content_obj._versions = [None]
     return content_obj._indicator_status

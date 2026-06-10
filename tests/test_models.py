@@ -193,8 +193,8 @@ class CopyTestCase(CMSTestCase):
         self.assertEqual(new_plugins[0].position, original_plugins[0].position)
         self.assertEqual(new_plugins[0].plugin_type, original_plugins[0].plugin_type)
         self.assertEqual(
-            new_plugins[0].djangocms_text_ckeditor_text.body,
-            original_plugins[0].djangocms_text_ckeditor_text.body,
+            new_plugins[0].djangocms_text_text.body,
+            original_plugins[0].djangocms_text_text.body,
         )
         self.assertEqual(
             new_plugins[0].creation_date, original_plugins[0].creation_date
@@ -206,8 +206,8 @@ class CopyTestCase(CMSTestCase):
         self.assertEqual(new_plugins[1].position, original_plugins[1].position)
         self.assertEqual(new_plugins[1].plugin_type, original_plugins[1].plugin_type)
         self.assertEqual(
-            new_plugins[1].djangocms_text_ckeditor_text.body,
-            original_plugins[1].djangocms_text_ckeditor_text.body,
+            new_plugins[1].djangocms_text_text.body,
+            original_plugins[1].djangocms_text_text.body,
         )
         self.assertEqual(
             new_plugins[1].creation_date, original_plugins[1].creation_date
@@ -221,7 +221,7 @@ class CopyTestCase(CMSTestCase):
         user = factories.UserFactory()
 
         with patch(
-            "djangocms_versioning.cms_config.Placeholder.copy_plugins"
+            "djangocms_versioning.datastructures.Placeholder.copy_plugins"
         ) as mocked_copy:
             new_version = original_version.copy(user)
 
@@ -237,6 +237,25 @@ class TestVersionModelProperties(CMSTestCase):
     def test_grouper(self):
         version = factories.PollVersionFactory()
         self.assertEqual(version.grouper, version.content.poll)
+
+    def test_version_str(self):
+        version = factories.PollVersionFactory()
+        expected_str = f"Version #{version.pk} (Draft) of {version.content}"
+        self.assertEqual(str(version), expected_str)
+
+    def test_version_str_failing(self):
+        def failing_str_method(self):
+            raise Exception("Cannot stringify")
+
+        version = factories.PollVersionFactory()
+        original_str_method = version.content.__class__.__str__
+        try:
+            version.content.__class__.__str__ = failing_str_method
+
+            expected_str = f"Version #{version.pk} (Draft)"
+            self.assertEqual(str(version), expected_str)
+        finally:
+            version.content.__class__.__str__ = original_str_method
 
 
 class TestVersionQuerySet(CMSTestCase):

@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlparse
 
 from bs4 import BeautifulSoup
+from cms import __version__ as cms_version
 from cms.test_utils.testcases import CMSTestCase
 from cms.toolbar.utils import get_object_edit_url, get_object_preview_url
 from cms.utils import get_language_from_request
@@ -143,7 +144,7 @@ class AdminReplaceVersioningTestCase(CMSTestCase):
         ) as mock:
             replace_admin_for_models([(PollContent, mixin)])
 
-        mock.assert_called_with(admin.site._registry[PollContent], mixin, admin.site)
+        mock.assert_called_with(admin.site._registry[PollContent], mixin)
 
     def test_replace_admin_on_registered_models(self):
         self.site.register(self.model, self.admin_class)
@@ -2074,6 +2075,40 @@ class EditRedirectTestCase(BaseStateTestCase):
 
         self.assertRedirects(response, target_url, target_status_code=302)
 
+    def test_edit_redirect_view_preserves_get_params_for_editable_target(self):
+        page_versionable = VersioningCMSConfig.versioning[0]
+        page_version = factories.PageVersionFactory(content__language="en")
+        url = self.get_admin_url(
+            page_versionable.version_model_proxy, "edit_redirect", page_version.pk
+        )
+        params = {"foo": "bar", "next": "/return/"}
+
+        with self.login_user_context(self.superuser):
+            response = self.client.post(f"{url}?{urlencode(params)}")
+
+        parsed = urlparse(response.url)
+        self.assertEqual(
+            parsed.path, get_object_edit_url(page_version.content, language="en")
+        )
+        self.assertEqual(parse_qs(parsed.query), {"foo": ["bar"], "next": ["/return/"]})
+
+    def test_edit_redirect_view_drops_get_params_for_admin_redirect(self):
+        draft_version = factories.PollVersionFactory(state=constants.DRAFT)
+        url = self.get_admin_url(
+            self.versionable.version_model_proxy, "edit_redirect", draft_version.pk
+        )
+        params = {"force_admin": "1", "next": "/return/"}
+
+        with self.login_user_context(self.superuser):
+            response = self.client.post(f"{url}?{urlencode(params)}")
+
+        parsed = urlparse(response.url)
+        self.assertEqual(
+            parsed.path,
+            self.get_admin_url(PollContent, "change", draft_version.content.pk),
+        )
+        self.assertEqual(parse_qs(parsed.query), {})
+
     @patch("django.contrib.messages.add_message")
     def test_edit_redirect_view_handles_nonexistent_version(self, mocked_messages):
         url = self.get_admin_url(
@@ -2397,6 +2432,8 @@ class VersionChangeListViewTestCase(CMSTestCase):
         self.assertEqual(fr_version1.content, fr_response.context["cl"].queryset.first().content)
 
     def test_changelist_view_displays_correct_breadcrumbs(self):
+        from django import VERSION as DJANGO_VERSION
+
         poll_content = factories.PollContentWithVersionFactory()
         url = self.get_admin_url(self.versionable.version_model_proxy, "changelist")
         url += "?poll=" + str(poll_content.poll_id)
@@ -2406,18 +2443,29 @@ class VersionChangeListViewTestCase(CMSTestCase):
 
         # Traverse the returned html to find the breadcrumbs
         soup = BeautifulSoup(str(response.content), features="lxml")
-        breadcrumb_html = soup.find("div", class_="breadcrumbs")
+        if DJANGO_VERSION >= (6, 1):
+            breadcrumb_html = soup.find("ol", class_="breadcrumbs")
+            expected = """<ol class="breadcrumbs">\\n    <li><a href="/en/admin/">Home</a></li>\\n"""
+            expected += """    <li><a href="/en/admin/polls/">Polls</a></li>\\n"""
+            expected += """    <li><a href="/en/admin/polls/pollcontent/">Poll contents</a></li>\\n"""
+            expected += f"""    <li><a href="/en/admin/polls/pollcontent/{poll_content.pk}/change/">"""
+            expected += f"""{str(poll_content)}</a></li>\\n"""
+            expected += """    <li aria-current="page">Versions</li>\\n</ol>"""
+        else:
+            breadcrumb_html = soup.find("div", class_="breadcrumbs")
+            expected = """<div class="breadcrumbs">\\n<a href="/en/admin/">Home</a>\\n› """
+            expected += """<a href="/en/admin/polls/">Polls</a>\\n› """
+            expected += """<a href="/en/admin/polls/pollcontent/">Poll contents</a>\\n› """
+            expected += f"""<a href="/en/admin/polls/pollcontent/{poll_content.pk}/change/">"""
+            expected += f"""{str(poll_content)}</a>\\n› """
+            expected += """Versions\\n</div>"""
         # Assert the breadcrumbs
-        expected = """<div class="breadcrumbs">\\n<a href="/en/admin/">Home</a>\\n› """
-        expected += """<a href="/en/admin/polls/">Polls</a>\\n› """
-        expected += """<a href="/en/admin/polls/pollcontent/">Poll contents</a>\\n› """
-        expected += f"""<a href="/en/admin/polls/pollcontent/{poll_content.pk}/change/">{str(poll_content)}</a>\\n› """
-        expected += """Versions\\n</div>"""
         self.assertEqual(str(breadcrumb_html), expected)
 
     def test_changelist_view_displays_correct_breadcrumbs_when_app_defines_breadcrumbs(
         self
     ):
+
         # The blogpost test app defines a breadcrumb template in
         # templates/admin/djangocms_versioning/blogpost/blogcontent/versioning_breadcrumbs.html
         # This test checks that template gets used.
@@ -2428,17 +2476,15 @@ class VersionChangeListViewTestCase(CMSTestCase):
 
         with self.login_user_context(self.superuser):
             response = self.client.get(url)
-
-        # Traverse the returned html to find the breadcrumbs
-        soup = BeautifulSoup(str(response.content), features="lxml")
-        breadcrumb_html = soup.find("div", class_="breadcrumbs")
         # Assert the breadcrumbs
         expected = """<div class="breadcrumbs">Blog post breadcrumbs bla bla</div>"""
-        self.assertEqual(str(breadcrumb_html), expected)
+        self.assertContains(response, expected)
 
     def test_changelist_view_displays_correct_breadcrumbs_for_extra_grouping_values(
         self
     ):
+        from django import VERSION as DJANGO_VERSION
+
         with freeze_time("1999-09-09"):
             # Make sure the English version is older than the French
             # So that the French one is in fact the latest one
@@ -2457,15 +2503,24 @@ class VersionChangeListViewTestCase(CMSTestCase):
 
         # Traverse the returned html to find the breadcrumbs
         soup = BeautifulSoup(str(response.content), features="lxml")
-        breadcrumb_html = soup.find("div", class_="breadcrumbs")
         # Assert the breadcrumbs - we should have ignored the French one
         # and put the English one in the breadcrumbs
         pk = page_content_en.pk
-        expected = """<div class="breadcrumbs">\\n<a href="/en/admin/">Home</a>\\n› """
-        expected += """<a href="/en/admin/cms/">django CMS</a>\\n› """
-        expected += """<a href="/en/admin/cms/pagecontent/">Page contents</a>\\n› """
-        expected += f"""<a href="/en/admin/cms/pagecontent/{pk}/change/">{page_content_en}</a>\\n› """
-        expected += """Versions\\n</div>"""
+        if DJANGO_VERSION >= (6, 1):
+            breadcrumb_html = soup.find("ol", class_="breadcrumbs")
+            expected = """<ol class="breadcrumbs">\\n    <li><a href="/en/admin/">Home</a></li>\\n"""
+            expected += """    <li><a href="/en/admin/cms/">django CMS</a></li>\\n"""
+            expected += """    <li><a href="/en/admin/cms/pagecontent/">Page contents</a></li>\\n"""
+            expected += f"""    <li><a href="/en/admin/cms/pagecontent/{pk}/change/">{page_content_en}</a></li>\\n"""
+            expected += """    <li aria-current="page">Versions</li>\\n</ol>"""
+        else:
+            breadcrumb_html = soup.find("div", class_="breadcrumbs")
+            expected = """<div class="breadcrumbs">\\n<a href="/en/admin/">Home</a>\\n› """
+            expected += """<a href="/en/admin/cms/">django CMS</a>\\n› """
+            expected += """<a href="/en/admin/cms/pagecontent/">Page contents</a>\\n› """
+            expected += f"""<a href="/en/admin/cms/pagecontent/{pk}/change/">{page_content_en}</a>\\n› """
+            expected += """Versions\\n</div>"""
+
         self.assertEqual(str(breadcrumb_html), expected)
 
     def test_changelist_view_redirects_on_url_params_that_arent_grouping_params(self):
@@ -3019,7 +3074,13 @@ class ExtendedVersionGrouperAdminTestCase(CMSTestCase):
         )
         # Check list_action links are rendered
         self.assertContains(response, "cms-action-btn")
-        self.assertContains(response, "cms-action-view")
+        if cms_version < "5.1":
+            # Before django CMS 5.1, preview action was added
+            self.assertContains(response, "cms-action-view")
+        else:
+            # Since django CMS 5.1, edit actions are added but only if the model is frontend-editable
+            # Poll is not, and does not add the action itself.
+            self.assertNotContains(response, "cms-action-view")
         self.assertContains(response, "cms-action-settings")
         self.assertContains(response, "js-action")
 
@@ -3176,6 +3237,7 @@ class ExtendedVersionGrouperAdminTestCase(CMSTestCase):
         request = RequestFactory().get("/", IS_POPUP_VAR=1)
         request.user = self.get_superuser()
         modeladmin = admin.site._registry[Poll]
+        modeladmin.language = "en"
         # List display must be accessed via the changelist, as the list may be incomplete when accessed from admin
         admin_field_list = modeladmin.get_changelist_instance(request).list_display
         author_index = admin_field_list.index("get_author")
@@ -3207,6 +3269,164 @@ class ExtendedVersionGrouperAdminTestCase(CMSTestCase):
         self.assertEqual(results[2].text, user_middle_lower.username)
         self.assertEqual(results[1].text, user_last.username)
         self.assertEqual(results[0].text, user_last_lower.username)
+
+
+class DefaultGrouperAdminTestCase(CMSTestCase):
+
+    def test_get_list_display(self):
+        """
+        The default grouper admin should return the default list display
+        """
+
+        modeladmin = admin.site._registry[Poll]
+        modeladmin.language = "en"
+        request = self.get_request("/")
+        request.user = self.get_superuser()
+
+        list_display = modeladmin.get_list_display(request)
+        list_display_functions = [fn.__name__ for fn in list_display if callable(fn)]
+
+        self.assertIn("indicator", list_display_functions)
+        self.assertIn("list_actions", list_display_functions)
+
+    def test_can_change_content(self):
+        """
+        The default grouper admin should allow changing content
+        """
+        from djangocms_versioning.admin import ExtendedGrouperVersionAdminMixin
+
+        modeladmin = admin.site._registry[Poll]
+        modeladmin.language = "en"
+        request = self.get_request("/")
+        request.user = self.get_superuser()
+
+        draft_version = factories.PollVersionFactory(content__language="en")
+        public_version = factories.PollVersionFactory(content__language="en", state=constants.PUBLISHED)
+
+        self.assertIsInstance(modeladmin, ExtendedGrouperVersionAdminMixin)
+        can_change = modeladmin.can_change_content(request, None)
+        self.assertTrue(can_change)
+        can_change = modeladmin.can_change_content(request, draft_version.content)
+        self.assertTrue(can_change)
+        can_change = modeladmin.can_change_content(request, public_version.content)
+        self.assertFalse(can_change)
+
+    def test_prepopulated_fields_excluded_when_readonly(self):
+        """Prepopulated fields referencing readonly content fields must be
+        excluded to avoid a KeyError in Django's AdminForm. See #532."""
+        from cms.admin.utils import CONTENT_PREFIX
+
+        modeladmin = admin.site._registry[Poll]
+        modeladmin.language = "en"
+        request = self.get_request("/")
+        request.user = self.get_superuser()
+
+        # Simulate prepopulated_fields on the admin class
+        original = modeladmin.__class__.prepopulated_fields
+        modeladmin.__class__.prepopulated_fields = {
+            CONTENT_PREFIX + "text": [CONTENT_PREFIX + "language"],
+        }
+        try:
+            # Draft version: content is editable, prepopulated_fields should be kept
+            draft_version = factories.PollVersionFactory(content__language="en")
+            prepopulated = modeladmin.get_prepopulated_fields(
+                request, draft_version.content.poll
+            )
+            self.assertIn(CONTENT_PREFIX + "text", prepopulated)
+
+            # Published version: content is readonly, prepopulated_fields should be removed
+            public_version = factories.PollVersionFactory(content__language="en", state=constants.PUBLISHED)
+            prepopulated = modeladmin.get_prepopulated_fields(
+                request, public_version.content.poll
+            )
+            self.assertNotIn(CONTENT_PREFIX + "text", prepopulated)
+        finally:
+            modeladmin.__class__.prepopulated_fields = original
+
+    def test_prepopulated_fields_add_change_add_sequence(self):
+        """Reproduces the flow from issue #532: after visiting the change view
+        of a published version the subsequent add view must still render, and
+        the prepopulated fields must resolve to real form fields on add and to
+        readonly on the published change view."""
+        from cms.admin.utils import CONTENT_PREFIX
+
+        modeladmin = admin.site._registry[Poll]
+        modeladmin.language = "en"
+
+        original_prep = modeladmin.__class__.prepopulated_fields
+        # "name" (grouper) is prepopulated from "content__text" (content field).
+        modeladmin.__class__.prepopulated_fields = {
+            "name": (CONTENT_PREFIX + "text",),
+        }
+        add_url = reverse("admin:polls_poll_add") + "?language=en"
+
+        try:
+            with self.login_user_context(self.get_superuser()):
+                # 1. Add view creates a draft version.
+                response = self.client.post(
+                    add_url,
+                    data={
+                        "name": "first-poll",
+                        CONTENT_PREFIX + "poll": "",
+                        CONTENT_PREFIX + "language": "en",
+                        CONTENT_PREFIX + "text": "First poll text",
+                    },
+                )
+                self.assertEqual(response.status_code, 302)
+                poll = Poll.objects.get(name="first-poll")
+                version = poll.pollcontent_set(manager="admin_manager").first().versions.first()
+                self.assertEqual(version.state, constants.DRAFT)
+
+                # 2. Publish the draft.
+                version.publish(self.get_superuser())
+                self.assertEqual(version.state, constants.PUBLISHED)
+
+                # 3. Change view of the published version renders. The
+                # prepopulated key "name" is a grouper field (still editable),
+                # but its dependency "content__text" is readonly on a published
+                # version, so the entry must be dropped from prepopulated_fields.
+                change_url = reverse(
+                    "admin:polls_poll_change", args=(poll.pk,)
+                ) + "?language=en"
+                response = self.client.get(change_url)
+                self.assertEqual(response.status_code, 200)
+                adminform = response.context["adminform"]
+                self.assertNotIn(
+                    CONTENT_PREFIX + "text",
+                    adminform.form.fields,
+                    "Readonly content field must not be in the rendered form",
+                )
+                self.assertIn(CONTENT_PREFIX + "text", adminform.readonly_fields)
+                prepopulated_keys = [
+                    entry["field"].name for entry in adminform.prepopulated_fields
+                ]
+                self.assertEqual(
+                    prepopulated_keys,
+                    [],
+                    "prepopulated_fields with a readonly dependency must be dropped",
+                )
+
+                # 4. Add view after the change view renders, and the
+                # prepopulated entry still resolves to real form fields.
+                response = self.client.get(add_url)
+                self.assertEqual(response.status_code, 200)
+                adminform = response.context["adminform"]
+                self.assertIn("name", adminform.form.fields)
+                self.assertIn(CONTENT_PREFIX + "text", adminform.form.fields)
+                self.assertNotIn("name", adminform.readonly_fields)
+                self.assertNotIn(CONTENT_PREFIX + "text", adminform.readonly_fields)
+                prepopulated_keys = [
+                    entry["field"].name for entry in adminform.prepopulated_fields
+                ]
+                self.assertEqual(prepopulated_keys, ["name"])
+                dependency_names = [
+                    dep.name
+                    for entry in adminform.prepopulated_fields
+                    for dep in entry["dependencies"]
+                ]
+                self.assertEqual(dependency_names, [CONTENT_PREFIX + "text"])
+        finally:
+            modeladmin.__class__.prepopulated_fields = original_prep
 
 
 class ListActionsTestCase(CMSTestCase):
@@ -3360,3 +3580,77 @@ class VersioningAdminButtonsTestCase(CMSTestCase):
         self.assertNotContains(response, "New Draft")
         self.assertNotContains(response, "Publish")
 
+
+class GrouperAdminPerformanceTestCase(CMSTestCase):
+    """Test to ensure Poll GrouperAdmin changelist_view queries are optimized"""
+
+    def setUp(self):
+        super().setUp()
+        # Pre-cache site to get consistent query counts across tests
+        from django.contrib.sites.models import Site
+        Site.objects.get_current()
+
+    def test_poll_grouper_changelist_queries_are_optimized(self):
+        """Pin the number of queries for Poll GrouperAdmin changelist to prevent regressions"""
+        # Create test data: 5 polls with 2 versions each (draft + published)
+        for _i in range(5):
+            # Create published version
+            published = PollVersionFactory(state=constants.PUBLISHED)
+            # Create draft version for same poll
+            PollVersionFactory(
+                content__poll=published.content.poll,
+                content__language=published.content.language,
+                state=constants.DRAFT,
+            )
+
+        from djangocms_versioning.test_utils.polls.admin import PollAdmin
+        from djangocms_versioning.test_utils.polls.models import Poll
+
+        poll_admin = PollAdmin(Poll, admin.site)
+
+        # Create request
+        factory = RequestFactory()
+        request = factory.get("/admin/polls/poll/")
+        request.session = {}
+        request.user = self.get_superuser()
+
+        # Pin the number of queries
+        # Expected queries should remain constant due to prefetch optimization
+        # 1. Count query for pagination
+        # 2. Count query (duplicate from admin)
+        # 3. Main queryset with subqueries for content annotations
+        # 4. django CMS 5.1+: Prefetch content
+        with self.assertNumQueries(3 if cms_version < "5.0.7" else 4):
+            response = poll_admin.changelist_view(request)
+            # Force evaluation of queryset
+            list(response.context_data["cl"].result_list)
+
+    def test_poll_changelist_with_many_versions_scales_well(self):
+        """Ensure query count doesn't increase with more versions per poll"""
+        # Create 1 poll with many versions
+        poll_version = PollVersionFactory(state=constants.PUBLISHED)
+        poll = poll_version.content.poll
+
+        # Add 10 more versions (archived)
+        for _ in range(10):
+            PollVersionFactory(
+                content__poll=poll,
+                content__language=poll_version.content.language,
+                state=constants.ARCHIVED,
+            )
+
+        from djangocms_versioning.test_utils.polls.admin import PollAdmin
+        from djangocms_versioning.test_utils.polls.models import Poll
+
+        poll_admin = PollAdmin(Poll, admin.site)
+
+        factory = RequestFactory()
+        request = factory.get("/admin/polls/poll/")
+        request.user = self.get_superuser()
+        request.session = {}
+
+        # Query count should remain the same regardless of version count
+        # because of prefetch optimization
+        with self.assertNumQueries(3 if cms_version < "5.0.7" else 4):
+            response = poll_admin.changelist_view(request)
+            list(response.context_data["cl"].result_list)

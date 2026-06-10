@@ -1,13 +1,14 @@
 import collections
 
+from cms import __version__ as cms_version
 from cms.app_base import CMSAppConfig, CMSAppExtension
-from cms.extensions.models import BaseExtension
-from cms.models import PageContent, Placeholder
+from cms.models import PageContent
 from cms.utils.i18n import get_language_list, get_language_tuple
 from cms.utils.plugins import copy_plugins_to_placeholder
 from cms.utils.urlutils import admin_reverse
 from django.conf import settings
 from django.contrib.admin.utils import flatten_fieldsets
+from django.contrib.sites.shortcuts import get_current_site
 from django.core.exceptions import (
     ImproperlyConfigured,
     ObjectDoesNotExist,
@@ -21,12 +22,14 @@ from django.http import (
 )
 from django.utils.encoding import force_str
 from django.utils.functional import cached_property
+from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
+from packaging.version import Version as PackageVersion
 
 from . import indicators
 from .admin import VersioningAdminMixin
 from .constants import INDICATOR_DESCRIPTIONS
-from .datastructures import BaseVersionableItem, VersionableItem
+from .datastructures import BaseVersionableItem, VersionableItem, default_copy
 from .exceptions import ConditionFailed
 from .helpers import (
     get_latest_admin_viewable_content,
@@ -47,16 +50,15 @@ class VersioningCMSExtension(CMSAppExtension):
         self.add_to_context = {}
         self.add_to_field_extension = {}
 
+    contract = "djangocms_versioning", VersionableItem
+
     @cached_property
     def versionables_by_content(self):
         """Returns a dict of {content_model_cls: VersionableItem obj}"""
-        return {
-            versionable.content_model: versionable for versionable in self.versionables
-        }
+        return {versionable.content_model: versionable for versionable in self.versionables}
 
     def is_content_model_versioned(self, content_model):
-        """Returns if the content model is registered for versioning.
-        """
+        """Returns if the content model is registered for versioning."""
         return content_model in self.versionables_by_content
 
     @cached_property
@@ -89,9 +91,7 @@ class VersioningCMSExtension(CMSAppExtension):
             # still changing and needs to be calculated on the fly
             registered_so_far = [v.content_model for v in self.versionables]
             if versionable.content_model in registered_so_far:
-                raise ImproperlyConfigured(
-                    f"{versionable.content_model!r} has already been registered"
-                )
+                raise ImproperlyConfigured(f"{versionable.content_model!r} has already been registered")
             # Checks passed. Add versionable to our master list
             self.versionables.append(versionable)
 
@@ -115,10 +115,17 @@ class VersioningCMSExtension(CMSAppExtension):
         """Replaces admin model classes for all registered content types
         with an admin model class that inherits from `versionable.content_admin_mixin`.
         """
+        from django.contrib.admin import autodiscover
+
+        autodiscover()
+        replace_admin_for_models(
+            [(versionable.content_model, versionable.content_admin_mixin) for versionable in cms_config.versioning]
+        )
         replace_admin_for_models(
             [
-                (versionable.content_model, versionable.content_admin_mixin)
+                (versionable.grouper_model, versionable.grouper_admin_mixin)
                 for versionable in cms_config.versioning
+                if versionable.grouper_admin_mixin is not None
             ]
         )
 
@@ -145,12 +152,15 @@ class VersioningCMSExtension(CMSAppExtension):
         """
         for versionable in cms_config.versioning:
             replace_manager(versionable.content_model, "objects", PublishedContentManagerMixin)
-            replace_manager(versionable.content_model, "admin_manager", AdminManagerMixin,
-                            _group_by_key=list(versionable.grouping_fields))
+            replace_manager(
+                versionable.content_model,
+                "admin_manager",
+                AdminManagerMixin,
+                _group_by_key=list(versionable.grouping_fields),
+            )
 
     def handle_admin_field_modifiers(self, cms_config):
-        """Allows for the transformation of a given field in the ExtendedVersionAdminMixin
-        """
+        """Allows for the transformation of a given field in the ExtendedVersionAdminMixin"""
         extended_admin_field_modifiers = getattr(cms_config, "extended_admin_field_modifiers", None)
         if not isinstance(extended_admin_field_modifiers, list):
             raise ImproperlyConfigured("extended_admin_field_modifiers must be list of dictionaries")
@@ -163,9 +173,7 @@ class VersioningCMSExtension(CMSAppExtension):
             self.handle_admin_field_modifiers(cms_config)
         # Validation to ensure either the versioning or the
         # versioning_add_to_confirmation_context config has been defined
-        has_extra_context = hasattr(
-            cms_config, "versioning_add_to_confirmation_context"
-        )
+        has_extra_context = hasattr(cms_config, "versioning_add_to_confirmation_context")
         has_models_to_register = hasattr(cms_config, "versioning")
         if not has_extra_context and not has_models_to_register:
             raise ImproperlyConfigured(
@@ -186,44 +194,8 @@ def copy_page_content(original_content):
     """Copy the PageContent object and deepcopy its
     placeholders and plugins.
     """
-    # Copy content object
-    content_fields = {
-        field.name: getattr(original_content, field.name)
-        for field in PageContent._meta.fields
-        # Don't copy the pk as we're creating a new obj.
-        # The creation date should reflect the date it was copied on,
-        # so don't copy that either.
-        if field.name not in (PageContent._meta.pk.name, "creation_date")
-    }
-
-    # Use original manager to not create a new Version object here
-    new_content = PageContent._original_manager.create(**content_fields)
-
-    # Copy placeholders
-    new_placeholders = []
-    for placeholder in original_content.placeholders.all():
-        placeholder_fields = {
-            field.name: getattr(placeholder, field.name)
-            for field in Placeholder._meta.fields
-            # don't copy primary key because we're creating a new obj
-            # and handle the source field later
-            if field.name not in [Placeholder._meta.pk.name, "source"]
-        }
-        if placeholder.source:
-            placeholder_fields["source"] = new_content
-        new_placeholder = Placeholder.objects.create(**placeholder_fields)
-        # Copy plugins
-        placeholder.copy_plugins(new_placeholder)
-        new_placeholders.append(new_placeholder)
-    new_content.placeholders.add(*new_placeholders)
-
-    # If pagecontent has an associated content or page extension, also copy this!
-    for field in PageContent._meta.related_objects:
-        if hasattr(original_content, field.name):
-            extension = getattr(original_content, field.name)
-            if isinstance(extension, BaseExtension):
-                extension.copy(new_content, new_content.language)
-
+    new_content = default_copy(original_content)
+    new_content.creation_date = now()
     return new_content
 
 
@@ -246,6 +218,7 @@ def on_page_content_publish(version):
         page._remove_title_root_path()
     page._update_url_path_recursive(language)
     page.clear_cache(menu=True)
+
 
 def on_page_content_unpublish(version):
     """Url path and cache operations to do when a PageContent obj is unpublished"""
@@ -284,17 +257,12 @@ class VersioningCMSPageAdminMixin(VersioningAdminMixin):
         return fields
 
     def get_queryset(self, request):
-        queryset = super().get_queryset(request)\
+        return (
+            super()
+            .get_queryset(request)
             .prefetch_related(Prefetch("versions", to_attr="prefetched_versions"))
-        return queryset
+        )
 
-    # CAVEAT:
-    #   - PageContent contains the template, this can differ for each language,
-    #     it is assumed that templates would be the same when copying from one language to another
-    # FIXME: The long term solution will require knowing:
-    #           - why this view is an ajax call
-    #           - where it should live going forwards (cms vs versioning)
-    #           - A better way of making the feature extensible / modifiable for versioning
     def copy_language(self, request, object_id):
         target_language = request.POST.get("target_language")
 
@@ -365,25 +333,25 @@ class VersioningCMSPageAdminMixin(VersioningAdminMixin):
             status = page_content.content_indicator()
         if not status or status == "empty":  # pragma: no cover
             return super().get_indicator_menu(request, page_content)
-        versions = page_content._version  # Cache from .content_indicator()
+        versions = page_content._versions  # Cache from .content_indicator()
         back = admin_reverse("cms_pagecontent_changelist") + f"?language={request.GET.get('language')}"
         menu = indicators.content_indicator_menu(request, status, versions, back=back)
         return menu_template if menu else "", menu
 
 
 class VersioningCMSConfig(CMSAppConfig):
-    """Implement versioning for core cms models
-    """
+    """Implement versioning for core cms models"""
+
     cms_enabled = True
-    djangocms_versioning_enabled = getattr(
-        settings, "VERSIONING_CMS_MODELS_ENABLED", True
-    )
+    djangocms_versioning_enabled = getattr(settings, "VERSIONING_CMS_MODELS_ENABLED", True)
     versioning = [
         VersionableItem(
             content_model=PageContent,
             grouper_field_name="page",
             extra_grouping_fields=["language"],
-            version_list_filter_lookups={"language": get_language_tuple},
+            version_list_filter_lookups={
+                "language": lambda *args: get_language_tuple(site_id=get_current_site(args[0]).pk)
+            },
             copy_function=copy_page_content,
             grouper_selector_option_label=label_from_instance,
             on_publish=on_page_content_publish,
@@ -393,6 +361,7 @@ class VersioningCMSConfig(CMSAppConfig):
             content_admin_mixin=VersioningCMSPageAdminMixin,
         )
     ]
-    cms_toolbar_mixin = CMSToolbarVersioningMixin
+    if PackageVersion(cms_version) < PackageVersion("4.2"):
+        cms_toolbar_mixin = CMSToolbarVersioningMixin
     PageContent.add_to_class("is_editable", is_editable)
     PageContent.add_to_class("content_indicator", indicators.content_indicator)

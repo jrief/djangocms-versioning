@@ -18,13 +18,13 @@
 <form action="" method="POST">
     {% csrf_token %}
     <div class="submit-row">
+        <a href="{{ back_url }}" class="button cancel-link js-versioning-keep-sideframe" role="button" style="margin-inline-start: auto">
+            {% translate 'No, take me back' %}
+        </a>
         <input  class="button confirm-link js-versioning-keep-sideframe default"
                 type="submit"
                 name="discard"
                 value="{% translate "Yes, I'm sure" %}">
-        <a href="{{ back_url }}" class="cancel-link js-versioning-keep-sideframe" role="button">
-            {% translate 'No, take me back' %}
-        </a>
     </div>
 </form>
 {% endblock %}

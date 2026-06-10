@@ -1,15 +1,12 @@
 from cms import constants as cms_constants
-from cms.cms_menus import CMSMenu as OriginalCMSMenu
 from cms.test_utils.testcases import CMSTestCase
 from cms.toolbar.toolbar import CMSToolbar
-from cms.toolbar.utils import get_object_preview_url
+from cms.toolbar.utils import get_object_edit_url, get_object_preview_url
 from django.contrib.auth.models import AnonymousUser
 from django.template import Context, Template
 from django.test import RequestFactory
 from django.test.utils import override_settings
-from menus.menu_pool import menu_pool
 
-from djangocms_versioning.cms_menus import CMSMenu
 from djangocms_versioning.test_utils.factories import (
     PageVersionFactory,
     UserFactory,
@@ -77,15 +74,9 @@ class CMSVersionedMenuTestCase(CMSTestCase):
         self.assertEqual(node.title, content.title)
 
         if edit_or_preview:
-            self.assertEqual(node.url, get_object_preview_url(content))
+            self.assertIn(node.url, (get_object_preview_url(content), get_object_edit_url(content),))
         else:
             self.assertEqual(node.url, content.get_absolute_url())
-
-    def test_core_cms_menu_is_removed(self):
-        menu_pool.discover_menus()
-        registered_menus = menu_pool.get_registered_menus(for_rendering=True)
-        self.assertNotIn(OriginalCMSMenu, registered_menus.values())
-        self.assertIn(CMSMenu, registered_menus.values())
 
     def test_no_menu_if_no_published_pages_in_public_mode(self):
         context = self._render_menu()

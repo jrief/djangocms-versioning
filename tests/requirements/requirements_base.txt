@@ -1,17 +1,4 @@
-setuptools
-beautifulsoup4
-coverage
-django-app-helper
-factory-boy
-ruff
-freezegun
-lxml
-mock
-pillow
-pyflakes>=2.1.1
-python-dateutil
-mysqlclient==2.0.3
+-r requirements_dev.txt
+mysqlclient>=2.2.1
 psycopg2
-setuptools
-
-djangocms-text-ckeditor>=5.1.2
+django-treebeard<5

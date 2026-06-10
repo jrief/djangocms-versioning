@@ -1,14 +1,8 @@
-|django| |djangocms4|
+|PyPiVersion| |PyVersion| |DjVersion| |CmsVersion| |Coverage|
 
 *********************
 django CMS Versioning
 *********************
-
-.. warning::
-
-    This is the development branch for django CMS version 4.1 support.
-
-    For django CMS V4.0 support, see `support/django-cms-4.0.x branch <https://github.com/django-cms/djangocms-versioning/tree/support/django-cms-4.0.x>`_
 
 
 ============
@@ -19,6 +13,8 @@ Requirements
 ============
 
 django CMS Versioning requires that you have a django CMS 4.0 (or higher) project already running and set up.
+
+Note: This package uses `django-fsm-2 <https://github.com/django-commons/django-fsm-2>`_ (actively maintained by Django Commons) instead of the original `django-fsm <https://github.com/viewflow/django-fsm>`_ for better support and maintenance.
 
 
 To install
@@ -33,7 +29,7 @@ Add ``djangocms_versioning`` to your project's ``INSTALLED_APPS``.
 Run::
 
     python -m manage migrate djangocms_versioning
-    python -m manage create_versions --user-id <user-id-of-migration-user> 
+    python -m manage create_versions --userid <user-id-of-migration-user>
 
 to perform the application's database migrations and (only if you have an existing database) add version objects
 needed to mark existing versions as draft.
@@ -54,16 +50,40 @@ An example implementation can be found here:
 Testing
 =======
 
-To run all the tests the only thing you need to do is run
+To run all the tests the only thing you need to do is run::
 
-    pip install -r tests/requirements.txt
-    python setup.py test
+    pip install -r tests/requirements/requirements_dev.txt
+    python test_settings.py
+
+
+Frontend assets
+===============
+
+The JavaScript bundles in ``djangocms_versioning/static/`` are built with webpack
+and managed via npm scripts. Node.js 24 is required (see ``.nvmrc``).
+
+Install dependencies::
+
+    npm install
+
+Common commands::
+
+    npm run build       # production build
+    npm run build:dev   # development build (sourcemaps, no minification)
+    npm run watch       # rebuild on file change
+    npm run lint        # ESLint over the project's JS sources
+
+End-to-end tests with Playwright::
+
+    npm run e2e         # runs the build with coverage instrumentation, then Playwright
 
 
 Documentation
 =============
 
-We maintain documentation under the ``docs`` folder using rst format.
+The documentation is online on `readthedocs <https://djangocms-versioning.readthedocs.io>`_.
+
+We maintain documentation in this repository under the ``docs`` folder using rst format.
 
 To generate the HTML documentation you will need to install ``sphinx`` (``pip install sphinx``) and ``graphviz`` (as per your operating system's package management system). You can then generate the docs using the following command:
 
@@ -104,8 +124,21 @@ To update transifex translation in this repo you need to download the
 ``tx pull`` from the repo's root directory. After downloading the translations
 do not forget to run the ``compilemessages`` management command.
 
+.. |PyPiVersion| image:: https://img.shields.io/pypi/v/djangocms-versioning.svg?style=flat-square
+    :target: https://pypi.python.org/pypi/djangocms-versioning
+    :alt: Latest PyPI version
 
-.. |django| image:: https://img.shields.io/badge/django-3.2%2B-blue.svg
-    :target: https://www.djangoproject.com/
-.. |djangocms4| image:: https://img.shields.io/badge/django%20CMS-4.1-blue.svg
-    :target: https://www.django-cms.org/
+.. |PyVersion| image:: https://img.shields.io/pypi/pyversions/djangocms-versioning.svg?style=flat-square
+    :target: https://pypi.python.org/pypi/djangocms-versioning
+    :alt: Python versions
+
+.. |DjVersion| image:: https://img.shields.io/pypi/frameworkversions/django/djangocms-versioning.svg?style=flat-square
+    :target: https://pypi.python.org/pypi/djangocms-versioning
+    :alt: Django versions
+
+.. |CmsVersion| image:: https://img.shields.io/pypi/frameworkversions/django-cms/djangocms-versioning.svg?style=flat-square
+    :target: https://pypi.python.org/pypi/djangocms-versioning
+    :alt: django CMS versions
+
+.. |Coverage| image:: https://codecov.io/gh/django-cms/djangocms-versioning/graph/badge.svg?token=Jyx7Ilpibf
+ :target: https://codecov.io/gh/django-cms/djangocms-versioning

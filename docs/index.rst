@@ -3,33 +3,43 @@ Welcome to "djangocms-versioning"'s documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Quick Start:
+   :caption: Tutorials:
 
-   basic_concepts
-   versioning_integration
-   permissions
-   version_locking
+   introduction/basic_concepts
+   introduction/working_with_pages
+   introduction/versioning_integration
 
 .. toctree::
    :maxdepth: 2
-   :caption: API Reference:
+   :caption: How-To Guides:
 
+   howto/permissions
+   howto/version_locking
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Reference:
+
+   api/models
+   api/managers
    api/advanced_configuration
    api/signals
-   api/customizing_version_list
    api/management_commands
-   settings
+   api/contract
+   api/settings
 
 .. toctree::
    :maxdepth: 2
-   :caption: Internals:
+   :caption: Explanation:
 
-   admin_architecture
+   explanations/admin_options
+   explanations/customizing_version_list
 
 .. toctree::
    :maxdepth: 2
    :caption: Release notes:
 
+   upgrade/2.4.0
    upgrade/2.0.0
 
 
@@ -71,3 +81,19 @@ Glossary
         existing version. By default it will copy the current published version,
         but when reverting to an old version, a specific unpublished or archived version
         will be used. A customizable copy function is used for this.
+
+    cms_config
+        The ``cms_config.py`` file in a Django app that defines how the app
+        integrates with django CMS and djangocms-versioning. It contains a
+        ``CMSAppConfig`` subclass with versioning settings.
+
+    ExtendedVersionAdminMixin
+        A mixin class for Django admin that adds versioning-related fields and
+        actions to the admin interface, including author, modified date,
+        versioning state, and version management actions.
+
+    extended_admin_field_modifiers
+        A configuration option in :term:`cms_config` that allows customizing
+        how fields are displayed in admin views that use the
+        :term:`ExtendedVersionAdminMixin`. Defined as a dictionary mapping
+        models to field transformation functions.

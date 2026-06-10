@@ -4,6 +4,8 @@ from django.conf import settings
 ENABLE_MENU_REGISTRATION = getattr(
     settings, "DJANGOCMS_VERSIONING_ENABLE_MENU_REGISTRATION", CMS_VERSION <= "4.1.0"
 )
+if CMS_VERSION.startswith("5."):
+    ENABLE_MENU_REGISTRATION = False
 
 USERNAME_FIELD = getattr(
     settings, "DJANGOCMS_VERSIONING_USERNAME_FIELD", "username"
@@ -30,9 +32,28 @@ EMAIL_NOTIFICATIONS_FAIL_SILENTLY = getattr(
 )
 
 ON_PUBLISH_REDIRECT = getattr(
-    settings, "DJANGOCMS_VERISONING_ON_PUBLISH_REDIRECT", "published"
+    settings,
+    "DJANGOCMS_VERSIONING_ON_PUBLISH_REDIRECT",
+    # Released typo (VERISONING instead VERSIONING)
+    getattr(settings, "DJANGOCMS_VERISONING_ON_PUBLISH_REDIRECT", "published")
 )
 #: Allowed values: "versions", "published", "preview"
+
+if hasattr(settings, "DJANGOCMS_VERISONING_ON_PUBLISH_REDIRECT") and not hasattr(
+    settings, "DJANGOCMS_VERSIONING_ON_PUBLISH_REDIRECT"
+):
+    import warnings
+
+    warnings.warn(
+        (
+            "The incorrectly spelled 'DJANGOCMS_VERISONING_ON_PUBLISH_REDIRECT' setting  "
+            "is deprecated and will be removed in a future release. "
+            "Please rename it to 'DJANGOCMS_VERSIONING_ON_PUBLISH_REDIRECT'."
+        ),
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
 
 VERBOSE_UI = getattr(
     settings, "DJANGOCMS_VERSIONING_VERBOSE_UI", True
